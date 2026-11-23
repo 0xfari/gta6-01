@@ -1,15 +1,17 @@
-// SOLMARIS dev server — serves game/ at http://localhost:8080 for playtesting
-// and screenshots. Static files only, no build step, no network fetches.
+// SOLMARIS v4 dev server — serves game/ at http://localhost:8080 so the game
+// can be playtested and screenshotted in a desktop browser. Static files
+// only: no build step, no compression, no directory listing, no network
+// fetches beyond localhost. Run with `node serve.ts` from the entry root.
+
 import { createServer } from 'node:http';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), 'game');
+const gameDir = join(dirname(fileURLToPath(import.meta.url)), 'game');
 const PORT = 8080;
 
-const TYPES = {
+const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
@@ -18,27 +20,25 @@ const TYPES = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
 };
 
 const server = createServer((req, res) => {
   try {
-    const url = new URL(req.url ?? '/', 'http://localhost');
-    let path = decodeURIComponent(url.pathname);
-    if (path === '/') path = '/index.html';
-    const file = join(root, path);
-    if (!file.startsWith(root) || !existsSync(file) || !statSync(file).isFile()) {
-      res.writeHead(404, { 'content-type': 'text/plain' });
+    const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+    const rel = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
+    const file = join(gameDir, rel);
+    if (!file.startsWith(gameDir) || !existsSync(file) || !statSync(file).isFile()) {
+      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       res.end('not found');
       return;
     }
-    res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' });
+    res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' });
     res.end(readFileSync(file));
   } catch (err) {
-    res.writeHead(500, { 'content-type': 'text/plain' });
+    res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
     res.end(String(err));
   }
 });
 
-server.listen(PORT, () => {
-  console.log('SOLMARIS dev server: http://localhost:' + PORT + '/ (serving game/)');
-});
+server.listen(PORT, () => console.log(`SOLMARIS v4 dev server: http://localhost:${PORT}/ (serving game/)`));

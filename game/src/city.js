@@ -1,178 +1,181 @@
-// SOLMARIS city — a sun-soaked coastal grid: roads, towers, beach, harbor.
-window.SOL = window.SOL || {};
-SOL.city = (function () {
-  var ROAD_AT = [-145, -87, -29, 29, 87, 145];
-  var ROAD_W = 14;
-  var BOUND = 205;
-  var colliders = [];
-  var sceneRef = null;
+// SOLMARIS v4 — city.js: a sun-soaked coastal grid. Roads on a 4x4 grid,
+// tower blocks between them, a beach on the east edge and a harbor dock on
+// the south edge. Placement uses the seeded SOL.rand so staged screenshots
+// are reproducible. Colliders are plain AABBs; resolveCollision pushes a
+// circle (player, car, pedestrian) out of every box it overlaps.
+(function () {
+  const GRID = [-120, -40, 40, 120];
+  const ROAD_W = 13;
+  const BOUND = 190;
+  const boxes = [];
 
-  // Named places the missions and the spawn logic use.
-  var SPOTS = {
-    start: { x: 0, z: 30 },
-    garage: { x: -116, z: -100 },
-    alley: { x: 58, z: -58 },
-    harbor: { x: 0, z: 188 },
-    safehouse: { x: 116, z: 116 },
-    hospital: { x: -58, z: 116 },
-    beach: { x: 180, z: 0 },
-    downtown: { x: 0, z: 0 }
+  const SPOTS = {
+    start: { x: 0, z: 24 },
+    garage: { x: -100, z: -100 },
+    alley: { x: 60, z: -60 },
+    harbor: { x: 0, z: 172 },
+    safehouse: { x: 100, z: 100 },
+    hospital: { x: -60, z: 100 },
+    beach: { x: 168, z: 0 },
+    plaza: { x: 0, z: 0 },
   };
 
-  function rand(a, b) { return a + Math.random() * (b - a); }
-  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-
-  function addCollider(x0, z0, x1, z1) {
-    colliders.push({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
+  function addBox(x0, z0, x1, z1) {
+    boxes.push({
+      x0: Math.min(x0, x1), z0: Math.min(z0, z1),
+      x1: Math.max(x0, x1), z1: Math.max(z0, z1),
+    });
   }
 
-  function roadTexture() {
-    var c = document.createElement('canvas');
+  function asphaltTexture() {
+    const c = document.createElement('canvas');
     c.width = 128; c.height = 128;
-    var g = c.getContext('2d');
-    g.fillStyle = '#33363d';
+    const g = c.getContext('2d');
+    g.fillStyle = '#34373e';
     g.fillRect(0, 0, 128, 128);
-    g.fillStyle = '#2b2e34';
-    for (var i = 0; i < 200; i++) g.fillRect(Math.random() * 128, Math.random() * 128, 2, 2);
+    g.fillStyle = '#2c2f35';
+    for (let i = 0; i < 160; i++) g.fillRect(SOL.rand() * 128, SOL.rand() * 128, 2, 2);
     g.fillStyle = '#e8e4d8';
     g.fillRect(0, 62, 128, 4);
     g.fillStyle = '#c9c4b2';
     g.fillRect(4, 0, 3, 128);
     g.fillRect(121, 0, 3, 128);
-    var tex = new THREE.CanvasTexture(c);
+    const tex = new THREE.CanvasTexture(c);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(24, 1);
+    tex.repeat.set(22, 1);
     return tex;
   }
 
-  function facadeTexture(base, litRatio) {
-    var c = document.createElement('canvas');
+  function windowsTexture(base, litChance) {
+    const c = document.createElement('canvas');
     c.width = 128; c.height = 256;
-    var g = c.getContext('2d');
+    const g = c.getContext('2d');
     g.fillStyle = base;
     g.fillRect(0, 0, 128, 256);
-    for (var y = 10; y < 246; y += 22) {
-      for (var x = 10; x < 118; x += 20) {
-        var lit = Math.random() < litRatio;
-        g.fillStyle = lit ? '#ffd98a' : '#20242e';
+    for (let y = 12; y < 244; y += 24) {
+      for (let x = 12; x < 116; x += 22) {
+        g.fillStyle = SOL.rand() < litChance ? '#ffd98a' : '#1e222c';
         g.fillRect(x, y, 12, 14);
       }
     }
-    var tex = new THREE.CanvasTexture(c);
-    return tex;
+    return new THREE.CanvasTexture(c);
   }
 
-  function buildGround(scene) {
-    var ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(480, 480),
+  function ground(scene) {
+    const base = new THREE.Mesh(
+      new THREE.PlaneGeometry(460, 460),
       new THREE.MeshLambertMaterial({ color: 0x7d838c })
     );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    scene.add(ground);
+    base.rotation.x = -Math.PI / 2;
+    base.receiveShadow = true;
+    scene.add(base);
 
-    var roadTex = roadTexture();
-    var roadMat = new THREE.MeshLambertMaterial({ map: roadTex });
-    var span = 340;
-    for (var i = 0; i < ROAD_AT.length; i++) {
-      var at = ROAD_AT[i];
-      var h = new THREE.Mesh(new THREE.PlaneGeometry(span, ROAD_W), roadMat);
+    const tex = asphaltTexture();
+    const roadMat = new THREE.MeshLambertMaterial({ map: tex });
+    const span = 330;
+    for (const at of GRID) {
+      const h = new THREE.Mesh(new THREE.PlaneGeometry(span, ROAD_W), roadMat);
       h.rotation.x = -Math.PI / 2;
       h.position.set(0, 0.02, at);
       scene.add(h);
-      var v = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, span), roadMat.clone());
-      // The vertical plane is 14 wide (u) by 340 long (v): tile the dashes
-      // along its length, not 24 times across its width.
-      var vTex = roadTex.clone();
-      vTex.repeat.set(1, 24);
+      const vTex = tex.clone();
+      vTex.repeat.set(1, 22);
       vTex.needsUpdate = true;
-      v.material.map = vTex;
+      const v = new THREE.Mesh(
+        new THREE.PlaneGeometry(ROAD_W, span),
+        new THREE.MeshLambertMaterial({ map: vTex })
+      );
       v.rotation.x = -Math.PI / 2;
       v.rotation.z = Math.PI / 2;
       v.position.set(at, 0.02, 0);
       scene.add(v);
     }
 
-    // Beach sand (east) and harbor concrete (south).
-    var sand = new THREE.Mesh(
-      new THREE.PlaneGeometry(48, 480),
+    // Sand on the east edge, concrete dock on the south edge.
+    const sand = new THREE.Mesh(
+      new THREE.PlaneGeometry(44, 460),
       new THREE.MeshLambertMaterial({ color: 0xe0c98f })
     );
     sand.rotation.x = -Math.PI / 2;
-    sand.position.set(192, 0.03, 0);
+    sand.position.set(186, 0.03, 0);
     scene.add(sand);
-    var dock = new THREE.Mesh(
-      new THREE.PlaneGeometry(480, 48),
+    const dock = new THREE.Mesh(
+      new THREE.PlaneGeometry(460, 44),
       new THREE.MeshLambertMaterial({ color: 0x767b84 })
     );
     dock.rotation.x = -Math.PI / 2;
-    dock.position.set(0, 0.03, 192);
+    dock.position.set(0, 0.03, 186);
     scene.add(dock);
 
-    // Water: east sea and south bay.
-    var waterMat = new THREE.MeshLambertMaterial({ color: 0x1e6f8e, transparent: true, opacity: 0.92 });
-    var sea = new THREE.Mesh(new THREE.PlaneGeometry(260, 480), waterMat);
+    // Water: sea east, bay south.
+    const waterMat = new THREE.MeshLambertMaterial({ color: 0x1e6f8e, transparent: true, opacity: 0.92 });
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(240, 460), waterMat);
     sea.rotation.x = -Math.PI / 2;
-    sea.position.set(345, 0.01, 0);
+    sea.position.set(330, 0.01, 0);
     scene.add(sea);
-    var bay = new THREE.Mesh(new THREE.PlaneGeometry(480, 260), waterMat);
+    const bay = new THREE.Mesh(new THREE.PlaneGeometry(460, 240), waterMat);
     bay.rotation.x = -Math.PI / 2;
-    bay.position.set(0, 0.01, 345);
+    bay.position.set(0, 0.01, 330);
     scene.add(bay);
   }
 
-  function buildBlocks(scene) {
-    var facades = [
-      facadeTexture('#c96f4a', 0.35),
-      facadeTexture('#4a7a96', 0.3),
-      facadeTexture('#8a6f9e', 0.3),
-      facadeTexture('#b8a05a', 0.35),
-      facadeTexture('#5f8a6a', 0.3)
+  function blocks(scene) {
+    const facades = [
+      windowsTexture('#c96f4a', 0.35),
+      windowsTexture('#4a7a96', 0.3),
+      windowsTexture('#8a6f9e', 0.3),
+      windowsTexture('#b8a05a', 0.35),
+      windowsTexture('#5f8a6a', 0.3),
     ];
-    var mats = facades.map(function (t) { return new THREE.MeshLambertMaterial({ map: t }); });
-    var centers = [-116, -58, 0, 58, 116];
-    var parkMat = new THREE.MeshLambertMaterial({ color: 0x4d8a4a });
-    var trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2a });
-    var leafMat = new THREE.MeshLambertMaterial({ color: 0x2f7a33 });
+    const mats = facades.map(function (t) { return new THREE.MeshLambertMaterial({ map: t }); });
+    const centers = [-80, 0, 80];
+    const grassMat = new THREE.MeshLambertMaterial({ color: 0x4d8a4a });
+    const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2a });
+    const leafMat = new THREE.MeshLambertMaterial({ color: 0x2f7a33 });
 
-    for (var ix = 0; ix < centers.length; ix++) {
-      for (var iz = 0; iz < centers.length; iz++) {
-        var cx = centers[ix];
-        var cz = centers[iz];
-        var roll = Math.random();
-        if (roll < 0.16) {
-          // Park block: grass + palms.
-          var park = new THREE.Mesh(new THREE.PlaneGeometry(42, 42), parkMat);
+    function palm(x, z, h) {
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.48, h, 6), trunkMat);
+      trunk.position.set(x, h / 2, z);
+      scene.add(trunk);
+      const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(2.5, 0), leafMat);
+      crown.position.set(x, h + 1.1, z);
+      scene.add(crown);
+    }
+
+    for (const cx of centers) {
+      for (const cz of centers) {
+        if (Math.abs(cx) < 5 && Math.abs(cz) < 5) {
+          // Central plaza: grass ring + palms, kept open for the player spawn.
+          const park = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), grassMat);
           park.rotation.x = -Math.PI / 2;
           park.position.set(cx, 0.04, cz);
           scene.add(park);
-          for (var t = 0; t < 4; t++) {
-            var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 7, 6), trunkMat);
-            trunk.position.set(cx + rand(-16, 16), 3.5, cz + rand(-16, 16));
-            scene.add(trunk);
-            var crown = new THREE.Mesh(new THREE.IcosahedronGeometry(2.6, 0), leafMat);
-            crown.position.set(trunk.position.x, 8.2, trunk.position.z);
-            scene.add(crown);
-          }
+          for (let t = 0; t < 4; t++) palm(cx + SOL.randRange(-15, 15), cz + SOL.randRange(-15, 15), 7);
           continue;
         }
-        // 1-3 towers per block.
-        var n = 1 + Math.floor(Math.random() * 3);
-        for (var b = 0; b < n; b++) {
-          var w = rand(12, 20);
-          var d = rand(12, 20);
-          var h = rand(9, 46);
-          var bx = cx + (b === 0 ? rand(-8, 8) : rand(-12, 12));
-          var bz = cz + (b === 0 ? rand(-8, 8) : rand(-12, 12));
-          if (Math.abs(bx) < 12 && Math.abs(bz) < 12) { bx += 14; }
-          var mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), pick(mats));
+        if (SOL.rand() < 0.18) {
+          const park = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), grassMat);
+          park.rotation.x = -Math.PI / 2;
+          park.position.set(cx, 0.04, cz);
+          scene.add(park);
+          for (let t = 0; t < 4; t++) palm(cx + SOL.randRange(-15, 15), cz + SOL.randRange(-15, 15), 7);
+          continue;
+        }
+        const n = 1 + Math.floor(SOL.rand() * 3);
+        for (let b = 0; b < n; b++) {
+          const w = SOL.randRange(12, 20);
+          const d = SOL.randRange(12, 20);
+          const h = SOL.randRange(9, 44);
+          const bx = cx + SOL.randRange(-11, 11);
+          const bz = cz + SOL.randRange(-11, 11);
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), SOL.pick(mats));
           mesh.position.set(bx, h / 2, bz);
+          mesh.castShadow = true;
           scene.add(mesh);
-          addCollider(bx - w / 2 - 0.5, bz - d / 2 - 0.5, bx + w / 2 + 0.5, bz + d / 2 + 0.5);
-          // Rooftop beacon on the tallest towers.
+          addBox(bx - w / 2 - 0.5, bz - d / 2 - 0.5, bx + w / 2 + 0.5, bz + d / 2 + 0.5);
           if (h > 30) {
-            var beacon = new THREE.Mesh(
+            const beacon = new THREE.Mesh(
               new THREE.BoxGeometry(1.2, 1.2, 1.2),
               new THREE.MeshBasicMaterial({ color: 0xff4040 })
             );
@@ -183,87 +186,77 @@ SOL.city = (function () {
       }
     }
 
-    // Harbor containers (colliders) + cranes.
-    var contColors = [0xb3541e, 0x2e6b8a, 0x7a9e2e, 0x8a2e5c];
-    for (var k = 0; k < 8; k++) {
-      var cw = 12, ch = 3, cd = 3;
-      var kx = -90 + k * 26;
-      var kz = 186 + (k % 2) * 8;
-      var cont = new THREE.Mesh(
-        new THREE.BoxGeometry(cw, ch, cd),
+    // Harbor containers (colliders) along the south dock.
+    const contColors = [0xb3541e, 0x2e6b8a, 0x7a9e2e, 0x8a2e5c];
+    for (let k = 0; k < 8; k++) {
+      const kx = -84 + k * 24;
+      const kz = 178 + (k % 2) * 8;
+      const cont = new THREE.Mesh(
+        new THREE.BoxGeometry(12, 3, 3),
         new THREE.MeshLambertMaterial({ color: contColors[k % 4] })
       );
-      cont.position.set(kx, ch / 2, kz);
+      cont.position.set(kx, 1.5, kz);
+      cont.castShadow = true;
       scene.add(cont);
-      addCollider(kx - cw / 2, kz - cd / 2, kx + cw / 2, kz + cd / 2);
+      addBox(kx - 6, kz - 1.5, kx + 6, kz + 1.5);
     }
-    // Beach palms along the shore road.
-    for (var p = -140; p <= 140; p += 28) {
-      var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 8, 6), trunkMat);
-      trunk.position.set(164, 4, p);
-      scene.add(trunk);
-      var crown = new THREE.Mesh(new THREE.IcosahedronGeometry(2.8, 0), leafMat);
-      crown.position.set(164, 9.4, p);
-      scene.add(crown);
-    }
+    // Beach palms along the shore.
+    for (let p = -140; p <= 140; p += 28) palm(160, p, 8);
     // Street lamps at intersections.
-    var poleMat = new THREE.MeshLambertMaterial({ color: 0x2c2f36 });
-    var lampMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8 });
-    for (var a = 0; a < ROAD_AT.length; a++) {
-      for (var c = 0; c < ROAD_AT.length; c++) {
-        var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 7, 6), poleMat);
-        pole.position.set(ROAD_AT[a] + 8.5, 3.5, ROAD_AT[c] + 8.5);
+    const poleMat = new THREE.MeshLambertMaterial({ color: 0x2c2f36 });
+    const lampMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8 });
+    for (const a of GRID) {
+      for (const c of GRID) {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 7, 6), poleMat);
+        pole.position.set(a + 8.5, 3.5, c + 8.5);
         scene.add(pole);
-        var lamp = new THREE.Mesh(new THREE.SphereGeometry(0.55, 8, 6), lampMat);
-        lamp.position.set(ROAD_AT[a] + 8.5, 7.2, ROAD_AT[c] + 8.5);
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.55, 8, 6), lampMat);
+        lamp.position.set(a + 8.5, 7.2, c + 8.5);
         scene.add(lamp);
       }
     }
   }
 
   function nearestRoad(x, z) {
-    var best = null;
-    var bestD = Infinity;
-    for (var i = 0; i < ROAD_AT.length; i++) {
-      var dz = Math.abs(z - ROAD_AT[i]);
-      if (dz < bestD) { bestD = dz; best = { axis: 'x', at: ROAD_AT[i], dist: dz }; }
-      var dx = Math.abs(x - ROAD_AT[i]);
-      if (dx < bestD) { bestD = dx; best = { axis: 'z', at: ROAD_AT[i], dist: dx }; }
+    let best = null;
+    let bestD = Infinity;
+    for (const at of GRID) {
+      const dz = Math.abs(z - at);
+      if (dz < bestD) { bestD = dz; best = { axis: 'x', at: at, dist: dz }; }
+      const dx = Math.abs(x - at);
+      if (dx < bestD) { bestD = dx; best = { axis: 'z', at: at, dist: dx }; }
     }
     return best;
   }
 
-  return {
+  SOL.city = {
     spots: SPOTS,
-    roads: ROAD_AT,
+    roads: GRID,
     roadWidth: ROAD_W,
     bound: BOUND,
+    colliders: boxes,
     build: function (scene) {
-      sceneRef = scene;
-      buildGround(scene);
-      buildBlocks(scene);
+      ground(scene);
+      blocks(scene);
       return this;
     },
-    colliders: colliders,
-    // Push a circle (pos.x/z, radius r) out of every building/container AABB.
     resolveCollision: function (pos, r) {
-      var hit = false;
-      for (var i = 0; i < colliders.length; i++) {
-        var c = colliders[i];
-        var nx = Math.max(c.x0, Math.min(pos.x, c.x1));
-        var nz = Math.max(c.z0, Math.min(pos.z, c.z1));
-        var dx = pos.x - nx;
-        var dz = pos.z - nz;
-        var d2 = dx * dx + dz * dz;
+      let hit = false;
+      for (const c of boxes) {
+        const nx = Math.max(c.x0, Math.min(pos.x, c.x1));
+        const nz = Math.max(c.z0, Math.min(pos.z, c.z1));
+        const dx = pos.x - nx;
+        const dz = pos.z - nz;
+        const d2 = dx * dx + dz * dz;
         if (d2 >= r * r) continue;
         hit = true;
         if (d2 > 0.0001) {
-          var d = Math.sqrt(d2);
+          const d = Math.sqrt(d2);
           pos.x = nx + (dx / d) * r;
           pos.z = nz + (dz / d) * r;
         } else {
-          var pl = Math.min(pos.x - c.x0, c.x1 - pos.x);
-          var pz = Math.min(pos.z - c.z0, c.z1 - pos.z);
+          const pl = Math.min(pos.x - c.x0, c.x1 - pos.x);
+          const pz = Math.min(pos.z - c.z0, c.z1 - pos.z);
           if (pl < pz) pos.x = (pos.x - c.x0 < c.x1 - pos.x) ? c.x0 - r : c.x1 + r;
           else pos.z = (pos.z - c.z0 < c.z1 - pos.z) ? c.z0 - r : c.z1 + r;
         }
@@ -276,28 +269,27 @@ SOL.city = (function () {
     },
     nearestRoad: nearestRoad,
     onRoad: function (x, z) {
-      var r = nearestRoad(x, z);
-      return r && r.dist <= ROAD_W / 2 + 0.5;
+      const r = nearestRoad(x, z);
+      return !!r && r.dist <= ROAD_W / 2 + 0.5;
     },
     randomRoadPoint: function () {
-      var axis = Math.random() < 0.5 ? 'x' : 'z';
-      var at = pick(ROAD_AT);
-      var along = rand(-150, 150);
+      const axis = SOL.rand() < 0.5 ? 'x' : 'z';
+      const at = SOL.pick(GRID);
+      const along = SOL.randRange(-150, 150);
       return axis === 'x' ? { x: along, z: at } : { x: at, z: along };
     },
     randomSidewalkPoint: function () {
-      var axis = Math.random() < 0.5 ? 'x' : 'z';
-      var at = pick(ROAD_AT);
-      var along = rand(-150, 150);
-      var off = (Math.random() < 0.5 ? -1 : 1) * (ROAD_W / 2 + 2.2);
+      const axis = SOL.rand() < 0.5 ? 'x' : 'z';
+      const at = SOL.pick(GRID);
+      const along = SOL.randRange(-150, 150);
+      const off = (SOL.rand() < 0.5 ? -1 : 1) * (ROAD_W / 2 + 2.2);
       return axis === 'x' ? { x: along, z: at + off } : { x: at + off, z: along };
     },
-    // A point on the same road as (x,z), offset forward along it.
     roadPointAhead: function (x, z, dist) {
-      var r = nearestRoad(x, z);
+      const r = nearestRoad(x, z);
       if (!r) return { x: x, z: z };
-      if (r.axis === 'x') return { x: x + (Math.random() < 0.5 ? -dist : dist), z: r.at };
-      return { x: r.at, z: z + (Math.random() < 0.5 ? -dist : dist) };
-    }
+      if (r.axis === 'x') return { x: x + (SOL.rand() < 0.5 ? -dist : dist), z: r.at };
+      return { x: r.at, z: z + (SOL.rand() < 0.5 ? -dist : dist) };
+    },
   };
 })();
