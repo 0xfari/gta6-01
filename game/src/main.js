@@ -1,7 +1,8 @@
-// SOLMARIS v4 — main.js: boot, game loop, third-person camera, menus, save,
-// and the ?shot= staging for screenshots. The game state object G is the
-// single source of truth every system reads: mode, time, cash, health,
-// wanted, kills, mission progress, and the player/city/camera handles.
+// SOLMARIS v5 — main.js: boot, game loop, third-person camera, menus, save,
+// and the ?shot= staging for screenshots. v5 adds the world dressing layer
+// (sky, sea, street props, skyline, harbor) and the activities layer
+// (stashes, fares, street race, finale job), and re-stages every shot so
+// the frame is full of city instead of empty ground.
 (function () {
   let renderer = null;
   let scene = null;
@@ -89,6 +90,8 @@
     SOL.hud.init();
     SOL.minimap.init($('minimap'));
     SOL.missions.init(scene, SOL.city, G);
+    SOL.world.init(scene);
+    SOL.activities.init(scene, G);
 
     // Parked stealable cars around the city — including the mission coupe.
     const spots = [
@@ -232,12 +235,15 @@
     const p = SOL.player;
     if (mode === 'drive') {
       const sport = parkedCars[2];
-      p.spawn(40, -20, Math.PI);
+      p.spawn(40, 10, Math.PI);
       p.enterCar(sport);
-      sport.pos.set(40, 0, -20);
+      sport.pos.set(40, 0, 10);
       sport.yaw = Math.PI;
-      sport.speed = 22;
-      SOL.traffic.placeNear(40, -60, 5);
+      sport.speed = 24;
+      // Dense traffic ahead and a billboard on the skyline so the strip
+      // reads as a living avenue, not an empty road.
+      SOL.traffic.placeNear(40, -50, 8);
+      SOL.traffic.placeNear(40, 60, 3);
       SOL.hud.objective('Cruising the Marina Strip — traffic ahead');
       SOL.hud.dialogue('LENA', 'That Vela Sport purrs. Take the coast road — the view is worth the risk.', 9000);
     } else if (mode === 'chase') {
@@ -250,28 +256,33 @@
       coupe.speed = 26;
       SOL.police.setWanted(3);
       // Two cruisers on the flanks, just ahead, driving north in formation
-      // with her — they read in frame at once, lights strobing.
+      // with her — they read in frame at once, lights strobing. A third
+      // cruiser waits up the road as a roadblock.
       SOL.police.spawnAt(35, -6, Math.PI);
       SOL.police.spawnAt(45, -4, Math.PI);
-      SOL.traffic.placeNear(40, -40, 4);
+      SOL.police.spawnAt(40, -58, 0);
+      SOL.traffic.placeNear(40, -40, 5);
       SOL.hud.objective('Lose the Solmaris PD — 3 stars!');
       SOL.hud.dialogue('LENA', 'Three stars and two cruisers on your bumper. Drive like you mean it!', 9000);
     } else if (mode === 'mission') {
-      // Stand two metres off the dock marker: close enough that the four
-      // guards spawn in frame ahead of the camera, far enough that their
-      // opening shots read as a fight, not a point-blank execution.
-      p.spawn(0, 170, 0);
+      // Stand on the dock apron, close to the marker: the four guards,
+      // the crane and the stacked containers all read in one frame, with
+      // the bay behind them — no empty ground in the shot.
+      p.spawn(0, 158, 0);
       SOL.missions.start(2);
       // Jump straight to the combat stage: guards on the dock, Lena's line up.
       SOL.missions.update(0.01);
       SOL.hud.objective('Clear the dock — defeat all 4 guards');
       SOL.hud.dialogue('LENA', 'Four guards between you and the money. Make it count.', 9000);
     } else {
-      // start — cover: on foot at the x=40 / z=40 intersection, facing north
-      // up a real street — buildings line both sides, traffic ahead, nothing
-      // blocking the camera, HUD and minimap visible.
-      p.spawn(40, 40, Math.PI);
-      SOL.traffic.placeNear(40, -10, 6);
+      // start — cover: on foot at the x=40 / z=60 intersection, facing north
+      // up a real street — fountain plaza to the left, towers ahead, a
+      // billboard on the skyline, traffic and pedestrians in the frame.
+      // Spawned a block south so the corner traffic light reads at scale
+      // instead of filling the foreground.
+      p.spawn(40, 60, Math.PI);
+      SOL.traffic.placeNear(40, -10, 8);
+      SOL.traffic.placeNear(40, 90, 3);
       SOL.hud.objective('Explore Solmaris — steal a car, take a job');
       SOL.hud.dialogue('LENA', 'Welcome to Solmaris. Steal something nice before the sun goes down.', 9000);
     }
@@ -297,6 +308,7 @@
       SOL.police.update(dt, SOL.player, SOL.player.car);
       SOL.combat.update(dt, G);
       SOL.missions.update(dt);
+      SOL.activities.update(dt, G);
       SOL.effects.update(dt);
       G.wanted = SOL.police.wanted;
       if (SOL.police.wanted > G.bestWanted) G.bestWanted = SOL.police.wanted;
@@ -340,6 +352,7 @@
       camera.position.set(Math.sin(t) * 190, 90, Math.cos(t) * 190);
       camera.lookAt(0, 0, 0);
     }
+    SOL.world.update(dt, G.time);
     renderer.render(scene, camera);
     if (firstFrame) {
       firstFrame = false;
@@ -363,7 +376,12 @@
     // Staged screenshot modes (?shot=start|drive|chase|mission).
     const params = new URLSearchParams(window.location.search);
     shotMode = params.get('shot');
-    if (shotMode) stageShot(shotMode);
+    if (shotMode) {
+      // Staged shots must show the staged objective, not a fare or race
+      // banner the activities layer would otherwise trigger.
+      G.shotStaged = true;
+      stageShot(shotMode);
+    }
     // Hooks for headless verification and the finalist review.
     window.__solmaris = { G: G, SOL: SOL, parkedCars: parkedCars, missionCar: missionCar, startGame: startGame, stageShot: stageShot };
     loop();

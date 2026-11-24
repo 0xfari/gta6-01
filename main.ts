@@ -1,4 +1,4 @@
-// SOLMARIS v4 — entrypoint for the make.fun gta6-01 "Make GTA 6" bounty.
+// SOLMARIS v5 — entrypoint for the make.fun gta6-01 "Make GTA 6" bounty.
 // The game itself is plain static files under game/ (three.js vendored, zero
 // network requests). This program is only the hand-in: it copies game/ and
 // screenshots/ into the output directory and writes /output/dossier.json
@@ -67,4 +67,4 @@ if (!Buffer.from(first).equals(Buffer.from(second))) {
 }
 const gameFiles = countFiles(join(out, 'game'));
 const shotFiles = existsSync(join(out, 'screenshots')) ? countFiles(join(out, 'screenshots')) : 0;
-console.log(`SOLMARIS v4 entry written to ${out} (dossier ${first.length} bytes, deterministic, ${gameFiles} game files, ${shotFiles} screenshots)`);
+console.log(`SOLMARIS v5 entry written to ${out} (dossier ${first.length} bytes, deterministic, ${gameFiles} game files, ${shotFiles} screenshots)`);

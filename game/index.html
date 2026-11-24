@@ -23,6 +23,7 @@
   #healthfill { height: 100%; width: 100%; background: linear-gradient(90deg,#ff5347,#ffb84e); }
   #playerline { margin-top: 5px; font-size: 12px; color: #cfe3ff; text-shadow: 0 1px 2px #000; }
   #ammoline { margin-top: 3px; font-size: 12px; color: #ffe9a8; text-shadow: 0 1px 2px #000; }
+  #sideline { margin-top: 3px; font-size: 12px; font-weight: 700; color: #7dff9a; text-shadow: 0 1px 2px #000; letter-spacing: 1px; }
   #stars { position: absolute; top: 14px; right: 20px; font-size: 36px; letter-spacing: 5px; }
   #stars .on { color: #ffd23e; text-shadow: 0 0 12px rgba(255,210,62,.9), 0 2px 0 #000; }
   #stars .off { color: rgba(255,255,255,.22); text-shadow: 0 2px 0 #000; }
@@ -101,6 +102,7 @@
     <div id="healthbar"><div id="healthfill"></div></div>
     <div id="playerline">LENA CRUZ — SOLMARIS</div>
     <div id="ammoline"></div>
+    <div id="sideline"></div>
   </div>
   <div id="stars"></div>
   <div id="wanted"></div>
@@ -126,6 +128,8 @@
       <div>1 · FIRST WHEELS — steal the marked coupe, deliver it to the garage</div>
       <div>2 · THE PICKUP — grab the package, lose the heat, make the drop</div>
       <div>3 · HARBOR HEIST — clear the dock, take the cash, escape alive</div>
+      <div>★ THE GETAWAY — final job, unlocks after the campaign ($1,000)</div>
+      <div>＋ Side jobs: 10 cash stashes · taxi fares · street race at the plaza</div>
     </div>
     <p class="controls"><b>WASD</b> move / drive &nbsp; <b>MOUSE</b> look &nbsp; <b>E</b> enter / exit car<br>
     <b>CLICK</b> shoot &nbsp; <b>SHIFT</b> run &nbsp; <b>SPACE</b> handbrake &nbsp; <b>P</b> pause &nbsp; <b>M</b> mute</p>
@@ -186,6 +190,8 @@
 <script src="src/hud.js"></script>
 <script src="src/minimap.js"></script>
 <script src="src/player.js"></script>
+<script src="src/world.js"></script>
+<script src="src/activities.js"></script>
 <script src="src/main.js"></script>
 </body>
 </html>
