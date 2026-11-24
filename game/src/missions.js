@@ -1,13 +1,15 @@
-// SOLMARIS v4 — missions.js: a 3-job campaign starring Lena Cruz. Cash
+// SOLMARIS v6 — missions.js: a 3-job campaign starring Lena Cruz. Cash
 // grows with the job: $250 → $450 → $750. Each mission is a short stage
 // list; the marker beacon shows where to go, the HUD shows the objective,
 // and Lena talks the player through it. Finishing all three ends the
 // campaign and drops the player into free roam.
 (function () {
-  const M = {};
-  const MISSIONS = [
+  var M = {};
+  var MISSIONS = [
     {
-      id: 0, title: 'FIRST WHEELS', payout: 250,
+      id: 0,
+      title: 'FIRST WHEELS',
+      payout: 250,
       intro: 'LENA: First rule of Solmaris — never pay for a car. That red coupe by the alley has your name on it. Take it.',
       stages: [
         { text: 'Steal the marked coupe', spot: 'alley', kind: 'steal' },
@@ -15,7 +17,9 @@
       ],
     },
     {
-      id: 1, title: 'THE PICKUP', payout: 450,
+      id: 1,
+      title: 'THE PICKUP',
+      payout: 450,
       intro: 'LENA: A package is waiting in the alley off 2nd. Grab it on foot — and when the heat comes, and it will come, lose it before the drop.',
       stages: [
         { text: 'Pick up the package in the alley', spot: 'alley', kind: 'pickup' },
@@ -23,7 +27,9 @@
       ],
     },
     {
-      id: 2, title: 'HARBOR HEIST', payout: 750,
+      id: 2,
+      title: 'HARBOR HEIST',
+      payout: 750,
       intro: "LENA: The crew's money sits on the south dock, guarded by four very serious men. Clear the dock, take the cash, and do not get caught.",
       stages: [
         { text: 'Reach the harbor dock', spot: 'harbor', kind: 'goto' },
@@ -34,21 +40,21 @@
     },
   ];
 
-  let scene = null;
-  let city = null;
-  let G = null;
-  let marker = null;
-  let markerLight = null;
-  let markerRing = null;
-  let active = -1; // mission index, -1 = none
-  let stage = 0;
-  let targetCar = null; // the marked coupe for mission 1
-  let guardsLeft = 0;
-  let clock = 0;
+  var scene = null;
+  var city = null;
+  var G = null;
+  var marker = null;
+  var markerLight = null;
+  var markerRing = null;
+  var active = -1; // mission index, -1 = none
+  var stage = 0;
+  var targetCar = null; // the marked coupe for mission 1
+  var guardsLeft = 0;
+  var clock = 0;
 
   function buildMarker() {
     marker = new THREE.Group();
-    const beam = new THREE.Mesh(
+    var beam = new THREE.Mesh(
       new THREE.CylinderGeometry(1.1, 1.6, 26, 12, 1, true),
       new THREE.MeshBasicMaterial({ color: 0xffd23e, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false })
     );
@@ -73,7 +79,9 @@
     marker.visible = true;
   }
 
-  function hideMarker() { marker.visible = false; }
+  function hideMarker() {
+    marker.visible = false;
+  }
 
   function currentStage() {
     if (active < 0) return null;
@@ -81,7 +89,7 @@
   }
 
   function stageSpot() {
-    const st = currentStage();
+    var st = currentStage();
     if (!st) return null;
     return city.spots[st.spot];
   }
@@ -98,17 +106,17 @@
     guardsLeft = 4;
     if (!SOL.combat) return;
     // A tight arc ahead of the dock marker, all four in the player's view.
-    const offsets = [-13, -4.5, 4.5, 13];
-    for (let i = 0; i < 4; i++) {
+    var offsets = [-13, -4.5, 4.5, 13];
+    for (var i = 0; i < 4; i++) {
       SOL.combat.spawnEnemy(spot.x + offsets[i], spot.z + 9 + (i % 2) * 5);
     }
   }
 
   function startStage() {
-    const st = currentStage();
+    var st = currentStage();
     if (!st) return;
     setObjective(st.text);
-    const spot = stageSpot();
+    var spot = stageSpot();
     if (st.kind === 'steal') {
       if (targetCar) moveMarker(targetCar.pos.x, targetCar.pos.z);
       else if (spot) moveMarker(spot.x, spot.z);
@@ -123,7 +131,7 @@
   }
 
   function completeMission() {
-    const m = MISSIONS[active];
+    var m = MISSIONS[active];
     G.cash += m.payout;
     G.completed.push(m.id);
     G.nextMission = Math.min(3, active + 1);
@@ -134,7 +142,7 @@
     }
     if (SOL.audio) SOL.audio.cash();
     if (SOL.save) SOL.save.store(G.saveData());
-    const done = active;
+    var done = active;
     active = -1;
     M.active = -1;
     stage = 0;
@@ -152,13 +160,48 @@
   function advanceStage() {
     stage++;
     M.stage = stage;
-    const m = MISSIONS[active];
+    var m = MISSIONS[active];
     if (stage >= m.stages.length) {
       completeMission();
       return;
     }
     if (SOL.audio) SOL.audio.pickup();
     startStage();
+  }
+
+  // Arriving at a district (goto) only needs to get close — 26 units, the
+  // size of the dock itself. Pickup and deliver are precise spots: 5.5.
+  // (A 5.5 radius on goto would strand the player metres from the dock
+  // with the stage never advancing — the guards would never spawn.)
+  function stageRadius(kind) {
+    return kind === 'goto' ? 26 : 5.5;
+  }
+
+  function resolveArrival(st, spot) {
+    var px = G.player.pos.x;
+    var pz = G.player.pos.z;
+    var dx = px - spot.x;
+    var dz = pz - spot.z;
+    var d2 = dx * dx + dz * dz;
+    var radius = stageRadius(st.kind);
+    if (d2 >= radius * radius) return false;
+    if (st.kind === 'goto') {
+      say('LENA', 'There they are. Weapons free.', 4000);
+      advanceStage();
+    } else if (st.kind === 'pickup') {
+      if (st.text.indexOf('package') >= 0) {
+        SOL.police.addHeat(50, 'the pickup was watched');
+        say('LENA', 'You have the package — and two cruisers just turned onto your street. Move!', 5500);
+      } else {
+        say('LENA', 'Cash secured. Now vanish before the whole precinct shows up.', 5000);
+        SOL.police.addHeat(50, 'the heist tripped the alarm');
+      }
+      if (SOL.audio) SOL.audio.pickup();
+      advanceStage();
+    } else if (st.kind === 'deliver') {
+      advanceStage();
+    }
+    return true;
   }
 
   M.list = MISSIONS;
@@ -180,7 +223,7 @@
     M.active = i;
     stage = 0;
     M.stage = 0;
-    const m = MISSIONS[i];
+    var m = MISSIONS[i];
     if (SOL.hud) SOL.hud.banner(m.title, 'Job ' + (i + 1) + ' of 3 — pays $' + m.payout);
     say('LENA', m.intro, 6500);
     if (SOL.audio) SOL.audio.cash();
@@ -194,11 +237,9 @@
       markerLight.intensity = 1.8 + Math.sin(clock * 3) * 0.6;
     }
     if (active < 0) return;
-    const st = currentStage();
+    var st = currentStage();
     if (!st) return;
-    const spot = stageSpot();
-    const px = G.player.pos.x;
-    const pz = G.player.pos.z;
+    var spot = stageSpot();
     if (st.kind === 'steal' && targetCar) {
       moveMarker(targetCar.pos.x, targetCar.pos.z);
       if (G.player.car === targetCar) {
@@ -208,32 +249,7 @@
       return;
     }
     if (!spot) return;
-    const dx = px - spot.x;
-    const dz = pz - spot.z;
-    const d2 = dx * dx + dz * dz;
-    // Arriving at a district (goto) only needs to get close — 26 units, the
-    // size of the dock itself. Pickup and deliver are precise spots: 5.5.
-    // (A 5.5 radius on goto would strand the player metres from the dock
-    // with the stage never advancing — the guards would never spawn.)
-    const radius = st.kind === 'goto' ? 26 : 5.5;
-    if (d2 < radius * radius) {
-      if (st.kind === 'goto') {
-        say('LENA', 'There they are. Weapons free.', 4000);
-        advanceStage();
-      } else if (st.kind === 'pickup') {
-        if (st.text.indexOf('package') >= 0) {
-          SOL.police.addHeat(50, 'the pickup was watched');
-          say('LENA', 'You have the package — and two cruisers just turned onto your street. Move!', 5500);
-        } else {
-          say('LENA', 'Cash secured. Now vanish before the whole precinct shows up.', 5000);
-          SOL.police.addHeat(50, 'the heist tripped the alarm');
-        }
-        if (SOL.audio) SOL.audio.pickup();
-        advanceStage();
-      } else if (st.kind === 'deliver') {
-        advanceStage();
-      }
-    }
+    resolveArrival(st, spot);
     if (st.kind === 'combat' && guardsLeft <= 0) {
       say('LENA', 'Dock is clear. Grab the cash.', 4500);
       advanceStage();
@@ -241,7 +257,9 @@
   };
 
   // The marked coupe for mission 1 — set by main.js when the world is built.
-  M.setTargetCar = function (car) { targetCar = car; };
+  M.setTargetCar = function (car) {
+    targetCar = car;
+  };
 
   M.onEnemyKilled = function () {
     guardsLeft = Math.max(0, guardsLeft - 1);
@@ -254,7 +272,9 @@
     return marker.visible ? { x: marker.position.x, z: marker.position.z } : null;
   };
 
-  M.isActive = function () { return active >= 0; };
+  M.isActive = function () {
+    return active >= 0;
+  };
 
   SOL.missions = M;
 })();

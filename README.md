@@ -6,6 +6,8 @@
 
 SOLMARIS — an original 3D open-world crime game built for the "Make GTA 6" bounty. A coastal city you explore on foot and by car: steal any of 6 car models, outrun the police under a 5-star wanted system, and run a 3-mission campaign as Lena Cruz. Traffic, pedestrians, hitscan combat, a live minimap, and a localStorage save — all running offline from static files. No Rockstar assets; three.js vendored, no network loads.
 
+v6 adds the world dressing layer (gradient sky, animated sea, pavement and crosswalks, traffic lights, billboards, skyline, dressed harbor) and the activities layer (10 cash stashes, taxi fares, a 5-gate street race, and the $1,000 finale job THE GETAWAY).
+
 ## Run it
 
 ```sh

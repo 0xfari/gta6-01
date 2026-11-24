@@ -1,4 +1,4 @@
-// SOLMARIS v4 dev server — serves game/ at http://localhost:8080 so the game
+// SOLMARIS v6 dev server — serves game/ at http://localhost:8080 so the game
 // can be playtested and screenshotted in a desktop browser. Static files
 // only: no build step, no compression, no directory listing, no network
 // fetches beyond localhost. Run with `node serve.ts` from the entry root.
@@ -23,12 +23,19 @@ const MIME = {
   '.svg': 'image/svg+xml',
 };
 
+function resolveFile(pathname) {
+  const rel = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
+  const file = join(gameDir, rel);
+  if (!file.startsWith(gameDir)) return null;
+  if (!existsSync(file) || !statSync(file).isFile()) return null;
+  return file;
+}
+
 const server = createServer((req, res) => {
   try {
     const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
-    const rel = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
-    const file = join(gameDir, rel);
-    if (!file.startsWith(gameDir) || !existsSync(file) || !statSync(file).isFile()) {
+    const file = resolveFile(pathname);
+    if (!file) {
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       res.end('not found');
       return;
@@ -41,4 +48,4 @@ const server = createServer((req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`SOLMARIS v4 dev server: http://localhost:${PORT}/ (serving game/)`));
+server.listen(PORT, () => console.log(`SOLMARIS v6 dev server: http://localhost:${PORT}/ (serving game/)`));

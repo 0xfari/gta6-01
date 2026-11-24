@@ -1,26 +1,30 @@
-// SOLMARIS v4 — hud.js: cash, health, stars, objective, dialogue, banners.
+// SOLMARIS v6 — hud.js: cash, health, stars, objective, dialogue, banners.
 // Plain DOM, updated only when values change so the browser is not doing
 // layout work every frame. The red vignette doubles as the damage flash and
 // the low-health warning.
 (function () {
-  const H = {};
-  const el = {};
-  let dlgTimer = null;
-  let bannerTimer = null;
-  let toastTimer = null;
-  let lastStars = -1;
-  let lastCash = -1;
-  let lastHealth = -1;
-  let lastObjective = '';
-  let lastAmmo = '';
+  var H = {};
+  var el = {};
+  var dlgTimer = null;
+  var bannerTimer = null;
+  var toastTimer = null;
+  var shown = {
+    stars: -1,
+    cash: -1,
+    health: -1,
+    objective: '',
+    ammo: '',
+  };
 
-  function $(id) { return document.getElementById(id); }
+  function $(id) {
+    return document.getElementById(id);
+  }
 
-  function setStars(n) {
-    if (n === lastStars) return;
-    lastStars = n;
-    let html = '';
-    for (let i = 0; i < 5; i++) {
+  function renderStars(n) {
+    if (n === shown.stars) return;
+    shown.stars = n;
+    var html = '';
+    for (var i = 0; i < 5; i++) {
       html += '<span class="' + (i < n ? 'on' : 'off') + '">★</span>';
     }
     el.stars.innerHTML = html;
@@ -48,25 +52,30 @@
     el.ammoline = $('ammoline');
   };
 
-  H.show = function () { el.hud.classList.remove('hidden'); };
-  H.hide = function () { el.hud.classList.add('hidden'); };
+  H.show = function () {
+    el.hud.classList.remove('hidden');
+  };
+
+  H.hide = function () {
+    el.hud.classList.add('hidden');
+  };
 
   H.update = function (G) {
-    const cash = G.cash | 0;
-    if (cash !== lastCash) {
-      lastCash = cash;
+    var cash = G.cash | 0;
+    if (cash !== shown.cash) {
+      shown.cash = cash;
       el.cash.textContent = '$' + cash.toLocaleString('en-US');
     }
-    const hp = Math.max(0, Math.round(G.health));
-    if (hp !== lastHealth) {
-      lastHealth = hp;
+    var hp = Math.max(0, Math.round(G.health));
+    if (hp !== shown.health) {
+      shown.health = hp;
       el.healthfill.style.width = hp + '%';
       el.vignette.style.opacity = hp < 35 ? String((35 - hp) / 35 * 0.85) : '0';
     }
-    setStars(G.wanted | 0);
-    const ammo = G.player && !G.player.car ? 'PISTOL ∞' : '';
-    if (ammo !== lastAmmo) {
-      lastAmmo = ammo;
+    renderStars(G.wanted | 0);
+    var ammo = G.player && !G.player.car ? 'PISTOL ∞' : '';
+    if (ammo !== shown.ammo) {
+      shown.ammo = ammo;
       el.ammoline.textContent = ammo;
     }
     if (G.player && G.player.car) {
@@ -81,8 +90,8 @@
   };
 
   H.objective = function (text) {
-    if (text === lastObjective) return;
-    lastObjective = text;
+    if (text === shown.objective) return;
+    shown.objective = text;
     el.objtext.textContent = text;
   };
 
@@ -91,7 +100,9 @@
     el.dlgtext.textContent = text;
     el.dialogue.classList.remove('hidden');
     if (dlgTimer) clearTimeout(dlgTimer);
-    dlgTimer = setTimeout(function () { el.dialogue.classList.add('hidden'); }, ms || 5200);
+    dlgTimer = setTimeout(function () {
+      el.dialogue.classList.add('hidden');
+    }, ms || 5200);
   };
 
   H.hideDialogue = function () {
@@ -117,12 +128,16 @@
     el.toast.textContent = text;
     el.toast.classList.remove('hidden');
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.toast.classList.add('hidden'); }, ms || 3200);
+    toastTimer = setTimeout(function () {
+      el.toast.classList.add('hidden');
+    }, ms || 3200);
   };
 
   H.damage = function () {
     el.vignette.style.opacity = '0.9';
-    setTimeout(function () { el.vignette.style.opacity = '0'; }, 180);
+    setTimeout(function () {
+      el.vignette.style.opacity = '0';
+    }, 180);
   };
 
   SOL.hud = H;
